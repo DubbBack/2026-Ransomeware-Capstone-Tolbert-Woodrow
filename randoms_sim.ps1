@@ -1,6 +1,11 @@
 param(
     [string]$Message = "Your files have been simulated-encrypted!`nThis is a training exercise.`nClick 'Pay Ransom' to end the simulation."
+    [string]$MessageFile = ""
 )
+
+if ($MessageFile -and (Test-Path $MessageFile)) { 
+    $Message = Get-Content -Raw $MessageFile 
+}
 
 Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName System.Drawing
