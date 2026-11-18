@@ -12,7 +12,6 @@ PASSWORD = "CEOPass123!"
 
 def attack_windows():
     print("[*] Step 1: Attacking Windows VM...")
-    # Execute the existing Windows attack script
     try:
         subprocess.run(["python3", "execute_attack.py"], check=True)
         print("[+] Windows attack launched.")
@@ -85,9 +84,11 @@ def monitor_windows(ssh_kali):
     print("    (Pay the ransom on the Windows VM to release both machines)")
     
     try:
+        # Connect and open SFTP to check for the file directly
         win_ssh = paramiko.SSHClient()
         win_ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
         win_ssh.connect(TARGET_WIN, username=USERNAME, password=PASSWORD)
+        win_sftp = win_ssh.open_sftp()
     except Exception as e:
         print(f"[-] Monitor could not connect to Windows: {e}")
         return
@@ -95,19 +96,28 @@ def monitor_windows(ssh_kali):
     while True:
         time.sleep(2) # Check every 2 seconds
         try:
-            stdin, stdout, stderr = win_ssh.exec_command('if exist C:\\Windows\\Temp\\PAID.txt (echo FOUND)')
-            result = stdout.read().decode().strip()
+            # Try to get file stats. If it exists, this succeeds.
+            # If it doesn't exist, it throws an IOError (FileNotFoundError).
+            win_sftp.stat('C:\\Windows\\Temp\\PAID.txt')
             
-            if "FOUND" in result:
-                print("\n[+] Payment detected on Windows VM! Ending Kali simulation...")
-                # Kill the Kali GUI remotely
-                ssh_kali.exec_command("pkill -f ransom_sim.py")
-                # Clean up the paid file
-                win_ssh.exec_command('del C:\\Windows\\Temp\\PAID.txt')
-                break
-        except Exception:
+            # If we get here, the file exists!
+            print("\n[+] Payment detected on Windows VM! Ending Kali simulation...")
+            
+            # Kill the Kali GUI remotely
+            ssh_kali.exec_command("pkill -f ransom_sim.py")
+            
+            # Clean up the paid file
+            win_sftp.remove('C:\\Windows\\Temp\\PAID.txt')
             break
             
+        except IOError:
+            # File doesn't exist yet, keep waiting
+            pass
+        except Exception as e:
+            print(f"[-] Error checking file: {e}")
+            break
+            
+    win_sftp.close()
     win_ssh.close()
     ssh_kali.close()
     print("[+] All simulations complete.")
