@@ -56,6 +56,7 @@ def check_password():
             time.sleep(0.2)
         root.destroy()
     else:
+        # On incorrect password, flash red and clear the entry
         entry.delete(0, tk.END)
         prompt_frame.configure(bg="darkred")
         prompt_frame.update()
