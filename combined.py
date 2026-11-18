@@ -82,6 +82,7 @@ root.mainloop()
 def monitor_windows(ssh_kali):
     print("[*] Step 3: Monitoring Windows for payment...")
     print("    (Pay the ransom on the Windows VM to release both machines)")
+    print("    Waiting for PAID.txt: ", end="", flush=True)
     
     try:
         # Connect and open SFTP to check for the file directly
@@ -90,18 +91,17 @@ def monitor_windows(ssh_kali):
         win_ssh.connect(TARGET_WIN, username=USERNAME, password=PASSWORD)
         win_sftp = win_ssh.open_sftp()
     except Exception as e:
-        print(f"[-] Monitor could not connect to Windows: {e}")
+        print(f"\n[-] Monitor could not connect to Windows: {e}")
         return
 
     while True:
         time.sleep(2) # Check every 2 seconds
         try:
             # Try to get file stats. If it exists, this succeeds.
-            # If it doesn't exist, it throws an IOError (FileNotFoundError).
             win_sftp.stat('C:\\Windows\\Temp\\PAID.txt')
             
             # If we get here, the file exists!
-            print("\n[+] Payment detected on Windows VM! Ending Kali simulation...")
+            print("\n\n[+] Payment detected on Windows VM! Ending Kali simulation...")
             
             # Kill the Kali GUI remotely
             ssh_kali.exec_command("pkill -f ransom_sim.py")
@@ -111,10 +111,11 @@ def monitor_windows(ssh_kali):
             break
             
         except IOError:
-            # File doesn't exist yet, keep waiting
+            # File doesn't exist yet, print a dot and keep waiting
+            print(".", end="", flush=True)
             pass
         except Exception as e:
-            print(f"[-] Error checking file: {e}")
+            print(f"\n[-] Error checking file: {e}")
             break
             
     win_sftp.close()
