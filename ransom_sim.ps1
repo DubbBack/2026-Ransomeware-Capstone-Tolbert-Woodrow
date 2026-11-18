@@ -1,16 +1,12 @@
-param(
-    [string]$Message = "Your files have been simulated-encrypted!`nThis is a training exercise.`nClick 'Pay Ransom' to end the simulation."
-    [string]$MessageFile = ""
-)
-
-if ($MessageFile -and (Test-Path $MessageFile)) { 
-    $Message = Get-Content -Raw $MessageFile 
-}
+# The message is hardcoded here using a PowerShell Here-String
+$Message = @"
+Test file for Ransomware
+If you are seeing this, you have been hacked.
+Pay up or else.
+"@
 
 Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName System.Drawing
-
-# ... (Keep the param block and Add-Type lines at the top) ...
 
 $form = New-Object System.Windows.Forms.Form
 $form.Text = "SYSTEM LOCKED"
@@ -27,7 +23,7 @@ $label.Text = $Message
 $label.ForeColor = [System.Drawing.Color]::Lime
 $label.Font = New-Object System.Drawing.Font("Consolas", 26, [System.Drawing.FontStyle]::Bold)
 $label.TextAlign = "MiddleCenter"
-$label.Dock = [System.Windows.Forms.DockStyle]::Fill # Fills the screen
+$label.Dock = [System.Windows.Forms.DockStyle]::Fill
 $form.Controls.Add($label)
 
 # BUTTON
@@ -39,17 +35,9 @@ $button.BackColor = [System.Drawing.Color]::DarkRed
 $button.FlatStyle = "Flat"
 $button.Width = 320
 $button.Height = 90
-$button.Dock = [System.Drawing.DockStyle]::Bottom # Anchors it to the bottom
+$button.Dock = [System.Drawing.DockStyle]::Bottom
 $form.Controls.Add($button)
-
-# CRITICAL FIX: Bring the button to the front so the label doesn't cover it
 $button.BringToFront()
-
-# (Keep the rest of the script: Add_Click, Add_FormClosing, Application::Run)
-$form.Add_Shown({
-    $button.Left = [int](($form.ClientSize.Width - $button.Width) / 2)
-    $button.Top  = [int]($form.ClientSize.Height - $button.Height - 60)
-})
 
 # "Pay Ransom" -> fake decrypt progress, then close cleanly
 $button.Add_Click({
@@ -76,10 +64,10 @@ $form.Add_FormClosing({
         $sender.Activate()
     }
 })
+
 $form.Add_KeyDown({
     param($sender, $e)
-    if (($e.Alt -and $e.KeyCode -eq [System.Windows.Forms.Keys]::F4) -or
-        $e.KeyCode -eq [System.Windows.Forms.Keys]::Escape) {
+    if (($e.Alt -and $e.KeyCode -eq [System.Windows.Forms.Keys]::F4) -or $e.KeyCode -eq [System.Windows.Forms.Keys]::Escape) {
         $e.SuppressKeyPress = $true
     }
 })
